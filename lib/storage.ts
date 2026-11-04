@@ -49,7 +49,13 @@ export async function saveData(data: AppData) {
 }
 
 export function parseTsv(text: string): ImportRow[] {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+  const cleaned = text
+    .replace(/^\uFEFF/, "")
+    .replace(/^```(?:json|tsv|text)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  if (cleaned.startsWith("[")) return parseJsonRows(cleaned);
+  const lines = cleaned.split(/\r?\n/).filter((line) => line.trim());
   if (!lines.length) return [];
   const first = lines[0].split("\t").map((cell) => cell.trim().toLowerCase());
   const expected = ["word", "meaning", "example", "translation", "source"];
@@ -62,6 +68,29 @@ export function parseTsv(text: string): ImportRow[] {
     if (cells.length < 5) row.error = "字段不足 5 列";
     else if (!word || !meaning || !example || !translation || !source) row.error = "存在空字段";
     else if (!/^[A-Za-z][A-Za-z '-]*$/.test(word)) row.error = "单词格式异常";
+    return row;
+  });
+}
+
+function parseJsonRows(text: string): ImportRow[] {
+  let values: unknown;
+  try {
+    values = JSON.parse(text);
+  } catch {
+    return [{ word: "", meaning: "", example: "", translation: "", source: "", line: 1, error: "JSON 格式无法识别" }];
+  }
+  if (!Array.isArray(values)) {
+    return [{ word: "", meaning: "", example: "", translation: "", source: "", line: 1, error: "JSON 顶层必须是数组" }];
+  }
+  return values.map((value, index) => {
+    const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const read = (key: string) => typeof item[key] === "string" ? item[key].trim().replace(/\s+/g, " ") : "";
+    const row: ImportRow = {
+      word: read("word"), meaning: read("meaning"), example: read("example"),
+      translation: read("translation"), source: read("source"), line: index + 1,
+    };
+    if (!row.word || !row.meaning || !row.example || !row.translation || !row.source) row.error = "存在空字段";
+    else if (!/^[A-Za-z][A-Za-z '-]*$/.test(row.word)) row.error = "单词格式异常";
     return row;
   });
 }

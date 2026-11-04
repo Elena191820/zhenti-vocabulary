@@ -12,6 +12,13 @@ test("parses TSV headers in any order and reports incomplete rows", () => {
   assert.equal(rows[1].error, "字段不足 5 列");
 });
 
+test("parses minified JSON copied from a mobile chat", () => {
+  const rows = parseTsv('[{"word":"income","meaning":"收入","example":"Tips supplement their income.","translation":"小费补充了他们的收入。","source":"2025 · Text 1"}]');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].word, "income");
+  assert.equal(rows[0].error, undefined);
+});
+
 test("merges duplicate words without replacing progress", () => {
   const data = { version:2, globalPosition:88, words:[{ ...base, wordStreak:3 }] };
   const rows = parseTsv("word\tmeaning\texample\ttranslation\tsource\nshift\t变化\tA second shift followed.\t随后发生了第二次变化。\t2023 Text 2");

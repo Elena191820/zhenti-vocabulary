@@ -7,7 +7,7 @@ import type { AppData, Context, ImportRow, Rating, WordEntry } from "../lib/type
 
 type Page = "home" | "word" | "context" | "import" | "library" | "data";
 const EMPTY: AppData = { version: 2, globalPosition: 0, words: [] };
-const TSV_SAMPLE = `word\tmeaning\texample\ttranslation\tsource\nresilient\t有韧性的；能复原的\tA resilient system can adapt to unexpected pressure.\t一个有韧性的系统能够适应意外压力。\t2024 · Text 1`;
+const JSON_SAMPLE = `[{"word":"resilient","meaning":"有韧性的；能复原的","example":"A resilient system can adapt to unexpected pressure.","translation":"一个有韧性的系统能够适应意外压力。","source":"2024 · Text 1"}]`;
 
 function formatDate(value: string) {
   if (value.startsWith("9999")) return "已移出";
@@ -175,7 +175,7 @@ function ImportPage({ data, setData, notify }: { data: AppData; setData: React.D
   function preview() { setRows(parseTsv(text)); }
   function commit() { setData((current) => mergeRows(current, valid)); notify(`已导入 ${valid.length} 条语境，原有进度已保留`); setText(""); setRows([]); }
   return <div className="page"><header className="page-header"><div><p className="eyebrow">批量导入</p><h1>把精读成果带进词库</h1><p>粘贴 TSV 文本。重复单词会合并语境，不会覆盖原有复习进度。</p></div></header>
-    <section className="panel import-panel"><div className="panel-title"><div><h2>粘贴数据</h2><p>列顺序：word、meaning、example、translation、source；首行表头可选。</p></div><button className="text-btn" onClick={() => setText(TSV_SAMPLE)}>填入示例</button></div><textarea value={text} onChange={(event) => { setText(event.target.value); setRows([]); }} placeholder={TSV_SAMPLE} /><div className="import-actions"><span>{text ? `${text.split(/\r?\n/).filter(Boolean).length} 行待检查` : "等待粘贴"}</span><button className="primary" disabled={!text.trim()} onClick={preview}>检查并预览</button></div></section>
+    <section className="panel import-panel"><div className="panel-title"><div><h2>粘贴数据</h2><p>支持 TSV 或 JSON；手机从 ChatGPT 复制时推荐 JSON，换行消失也能识别。</p></div><button className="text-btn" onClick={() => setText(JSON_SAMPLE)}>填入 JSON 示例</button></div><textarea value={text} onChange={(event) => { setText(event.target.value); setRows([]); }} placeholder={JSON_SAMPLE} /><div className="import-actions"><span>{text ? "已有内容待检查" : "等待粘贴"}</span><button className="primary" disabled={!text.trim()} onClick={preview}>检查并预览</button></div></section>
     {rows.length > 0 && <section className="panel preview"><div className="panel-title"><div><h2>导入预览</h2><p><b>{valid.length}</b> 条可导入 · <b>{rows.length - valid.length}</b> 条有误 · <b>{duplicateWords}</b> 个重复单词将合并</p></div><button className="primary" disabled={!valid.length} onClick={commit}>确认导入</button></div><div className="table-wrap"><table><thead><tr><th>状态</th><th>单词 / 释义</th><th>真题原句</th><th>来源</th></tr></thead><tbody>{rows.map((row) => <tr key={row.line} className={row.error ? "row-error" : ""}><td><span className={row.error ? "pill error" : "pill ok"}>{row.error || "可导入"}</span></td><td><b>{row.word || "—"}</b><small>{row.meaning}</small></td><td>{row.example || "—"}</td><td>{row.source || "—"}</td></tr>)}</tbody></table></div></section>}
   </div>;
 }
