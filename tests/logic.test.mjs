@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseTsv, mergeRows } from "../lib/storage.ts";
 import { REVIEW_INTERVALS, scheduleWord } from "../lib/scheduler.ts";
-import { ANALYTICS_EVENTS, trackEvent } from "../lib/analytics.ts";
+import { ANALYTICS_EVENTS, readAnalyticsOptOut, trackEvent, writeAnalyticsOptOut } from "../lib/analytics.ts";
 
 const base = { id:"w1", word:"shift", meaning:"转变", contexts:[], status:"learning", wordStreak:0, nextReviewPosition:0, fallbackDueAt:"2020-01-01T00:00:00.000Z", contextStreak:0, wordHistory:[], contextHistory:[], createdAt:"2020-01-01T00:00:00.000Z", updatedAt:"2020-01-01T00:00:00.000Z" };
 
@@ -60,5 +60,15 @@ test("analytics only sends allowlisted anonymous event names and fails safely", 
   assert.deepEqual(received, [...ANALYTICS_EVENTS]);
   globalThis.window = { umami: { track: () => { throw new Error("analytics unavailable"); } } };
   assert.doesNotThrow(() => trackEvent("word_mode_click"));
+  delete globalThis.window;
+});
+
+test("analytics opt-out is stored only in the current browser", () => {
+  const values = new Map();
+  globalThis.window = { localStorage: { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) } };
+  writeAnalyticsOptOut(true);
+  assert.equal(readAnalyticsOptOut(), true);
+  writeAnalyticsOptOut(false);
+  assert.equal(readAnalyticsOptOut(), false);
   delete globalThis.window;
 });

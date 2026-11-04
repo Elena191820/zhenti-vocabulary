@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { trackEvent } from "../lib/analytics";
+import { readAnalyticsOptOut, trackEvent, writeAnalyticsOptOut } from "../lib/analytics";
 import { isDue, scheduleWord } from "../lib/scheduler";
 import { loadData, mergeRows, normalizeBackup, parseTsv, saveData } from "../lib/storage";
 import type { AppData, Context, ImportRow, Rating, WordEntry } from "../lib/types";
@@ -226,9 +226,18 @@ function EditModal({ word, onCancel, onSave }: { word: WordEntry; onCancel: () =
 
 function DataPage({ data, setData, notify }: { data: AppData; setData: React.Dispatch<React.SetStateAction<AppData>>; notify: (text: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [analyticsOptOut, setAnalyticsOptOut] = useState(false);
+  useEffect(() => { setAnalyticsOptOut(readAnalyticsOptOut()); }, []);
   function exportJson() { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `真题词库备份-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url); }
   async function restore(file?: File) { if (!file) return; try { const incoming = normalizeBackup(JSON.parse(await file.text())); if (!confirm(`恢复备份将使用文件中的 ${incoming.words.length} 个单词替换当前词库，继续吗？`)) return; setData(incoming); notify("备份恢复成功"); } catch (error) { alert(error instanceof Error ? error.message : "无法读取备份"); } if (fileRef.current) fileRef.current.value = ""; }
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">数据管理</p><h1>备份你的学习记录</h1><p>词库默认保存在当前浏览器。定期导出 JSON，可迁移到其他设备或避免误删。</p></div></header><div className="data-grid"><section className="panel data-card"><span>↓</span><h2>导出完整备份</h2><p>包含词汇、全部语境、两个模式的连续次数与练习历史。</p><button className="primary" onClick={exportJson}>导出 JSON</button></section><section className="panel data-card"><span>↑</span><h2>从备份恢复</h2><p>恢复前会先确认。请选择由本应用导出的 JSON 文件。</p><input ref={fileRef} type="file" accept="application/json,.json" onChange={(event) => restore(event.target.files?.[0])} /></section></div><section className="panel privacy"><b>本地保存与匿名统计说明</b><p>词库和学习记录使用 IndexedDB 保存在此浏览器中，不会上传到服务器。网站仅发送不含词库内容的匿名访问与功能事件。清除浏览器站点数据可能导致词库丢失，请保留一份近期备份。</p></section></div>;
+  function toggleAnalyticsOptOut() {
+    const next = !analyticsOptOut;
+    writeAnalyticsOptOut(next);
+    setAnalyticsOptOut(next);
+    notify(next ? "此浏览器已停止参与统计" : "此浏览器已恢复参与统计");
+    window.setTimeout(() => window.location.reload(), 500);
+  }
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">数据管理</p><h1>备份你的学习记录</h1><p>词库默认保存在当前浏览器。定期导出 JSON，可迁移到其他设备或避免误删。</p></div></header><div className="data-grid"><section className="panel data-card"><span>↓</span><h2>导出完整备份</h2><p>包含词汇、全部语境、两个模式的连续次数与练习历史。</p><button className="primary" onClick={exportJson}>导出 JSON</button></section><section className="panel data-card"><span>↑</span><h2>从备份恢复</h2><p>恢复前会先确认。请选择由本应用导出的 JSON 文件。</p><input ref={fileRef} type="file" accept="application/json,.json" onChange={(event) => restore(event.target.files?.[0])} /></section></div><section className="panel privacy"><b>本地保存与匿名统计说明</b><p>词库和学习记录使用 IndexedDB 保存在此浏览器中，不会上传到服务器。网站仅发送不含词库内容的匿名访问与功能事件。清除浏览器站点数据可能导致词库丢失，请保留一份近期备份。</p><div className="analytics-optout"><div><strong>本机不参与访问统计</strong><small>只对当前手机的当前浏览器生效，不影响词库和复习功能。</small></div><button className={analyticsOptOut ? "optout-on" : ""} role="switch" aria-checked={analyticsOptOut} onClick={toggleAnalyticsOptOut}><i />{analyticsOptOut ? "已开启" : "未开启"}</button></div></section></div>;
 }
 
 function Empty({ title, text, action, onClick }: { title: string; text: string; action?: string; onClick?: () => void }) { return <div className="empty"><span>✦</span><h2>{title}</h2><p>{text}</p>{action && <button className="primary" onClick={onClick}>{action}</button>}</div>; }
