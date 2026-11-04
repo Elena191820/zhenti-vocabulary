@@ -82,15 +82,15 @@ function Nav({ active, icon, label, onClick }: { active: boolean; icon: string; 
 function Home({ stats, onPage }: { stats: { total: number; due: number; mastered: number; today: number }; onPage: (page: Page) => void }) {
   const today = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(new Date());
   return <div className="page home-page">
-    <header className="page-header"><div><p className="eyebrow">{today}</p><h1>今天，继续走进真题。</h1><p>先回顾到期词汇，再用原句检验真正的掌握。</p></div><button className="ghost" onClick={() => onPage("import")}>＋ 导入新词</button></header>
+    <header className="page-header"><div><p className="eyebrow">{today}</p><h1>今天，继续走进真题。</h1><p>先回顾需要复习的词汇，再用原句检验真正的掌握。</p></div><button className="ghost" onClick={() => onPage("import")}>＋ 导入新词</button></header>
     <section className="stats-grid">
       <article><span className="stat-icon lavender">✓</span><div><small>今日已练</small><strong>{stats.today}</strong></div><em>张卡片</em></article>
-      <article><span className="stat-icon peach">◷</span><div><small>当前到期</small><strong>{stats.due}</strong></div><em>优先复习</em></article>
+      <article><span className="stat-icon peach">◷</span><div><small>还需复习</small><strong>{stats.due}</strong></div><em>优先复习</em></article>
       <article><span className="stat-icon mint">◇</span><div><small>总词汇量</small><strong>{stats.total}</strong></div><em>{stats.mastered} 个已熟记</em></article>
     </section>
     <section className="mode-grid">
       <button className="mode-card word-mode" onClick={() => onPage("word")}>
-        <span className="mode-label">WORD MODE</span><div className="mode-art">Aa</div><div><h2>单词模式</h2><p>单词 → 原句 → 释义，三步建立稳固记忆。</p><b>{stats.due ? `${stats.due} 个单词已到期` : "开始学习新增单词"} <span>→</span></b></div>
+        <span className="mode-label">WORD MODE</span><div className="mode-art">Aa</div><div><h2>单词模式</h2><p>单词 → 原句 → 释义，三步建立稳固记忆。</p><b>{stats.due ? `${stats.due} 个单词还需复习` : "开始学习新增单词"} <span>→</span></b></div>
       </button>
       <button className="mode-card context-mode" onClick={() => onPage("context")}>
         <span className="mode-label">CONTEXT MODE</span><div className="mode-art">“ ”</div><div><h2>语境模式</h2><p>在真题原句中填空，确认你能真正用语境唤起单词。</p><b>开始语境巩固 <span>→</span></b></div>
@@ -122,7 +122,7 @@ function WordMode({ data, setData, onBack }: { data: AppData; setData: React.Dis
   }
 
   return <div className="page study-page">
-    <StudyHeader title="单词模式" subtitle="点击卡片，逐层揭示答案" progress={word ? `${due.length} 个到期` : "本轮完成"} onBack={onBack} />
+    <StudyHeader title="单词模式" subtitle="点击卡片，逐层揭示答案" progress={word ? `${due.length} 个还需复习` : "本轮完成"} onBack={onBack} />
     {word ? <>
       <div className={`study-card stage-${stage}`} role="button" tabIndex={0} onClick={() => setStage((value) => Math.min(3, value + 1))} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setStage((value) => Math.min(3, value + 1)); }}>
         <div className="card-top"><span>{stage === 1 ? "先回忆词义" : stage === 2 ? "读一读真题原句" : "核对完整答案"}</span><em>{context?.source}</em></div>
@@ -132,7 +132,7 @@ function WordMode({ data, setData, onBack }: { data: AppData; setData: React.Dis
         <div className="stage-dots"><i className="done" /><i className={stage >= 2 ? "done" : ""} /><i className={stage >= 3 ? "done" : ""} /></div>
       </div>
       {stage === 3 ? <div className="rating-row"><button className="rate fuzzy" onClick={() => rate("fuzzy")}><span>↺</span><b>模糊</b><small>很快再来</small></button><button className="rate known" onClick={() => rate("known")}><span>✓</span><b>认识</b><small>拉长间隔</small></button><button className="rate mastered" onClick={() => rate("mastered")}><span>✦</span><b>熟记</b><small>移出队列</small></button></div> : <p className="tap-hint">点击卡片继续</p>}
-    </> : <Empty title="这一轮完成了" text="目前没有到期或新增单词。时间兜底会确保词库较小时，旧词也会在之后重新出现。" action="返回今日" onClick={onBack} />}
+    </> : <Empty title="这一轮完成了" text="目前没有需要复习或新增的单词。时间兜底会确保词库较小时，旧词也会在之后重新出现。" action="返回今日" onClick={onBack} />}
   </div>;
 }
 
