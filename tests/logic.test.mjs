@@ -19,6 +19,13 @@ test("parses minified JSON copied from a mobile chat", () => {
   assert.equal(rows[0].error, undefined);
 });
 
+test("extracts JSON despite mobile clipboard labels and invisible characters", () => {
+  const rows = parseTsv('\u200bjson\n以下是结果：\n[{"word":"promote","meaning":"促进","example":"Policies promote consumption.","translation":"政策促进消费。","source":"2025 · Text 1"}]\n复制');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].word, "promote");
+  assert.equal(rows[0].error, undefined);
+});
+
 test("merges duplicate words without replacing progress", () => {
   const data = { version:2, globalPosition:88, words:[{ ...base, wordStreak:3 }] };
   const rows = parseTsv("word\tmeaning\texample\ttranslation\tsource\nshift\t变化\tA second shift followed.\t随后发生了第二次变化。\t2023 Text 2");

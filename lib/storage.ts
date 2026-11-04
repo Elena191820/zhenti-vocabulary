@@ -51,10 +51,16 @@ export async function saveData(data: AppData) {
 export function parseTsv(text: string): ImportRow[] {
   const cleaned = text
     .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .replace(/\u00A0/g, " ")
     .replace(/^```(?:json|tsv|text)?\s*/i, "")
     .replace(/\s*```$/, "")
     .trim();
-  if (cleaned.startsWith("[")) return parseJsonRows(cleaned);
+  const jsonStart = cleaned.indexOf("[");
+  const jsonEnd = cleaned.lastIndexOf("]");
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    return parseJsonRows(cleaned.slice(jsonStart, jsonEnd + 1));
+  }
   const lines = cleaned.split(/\r?\n/).filter((line) => line.trim());
   if (!lines.length) return [];
   const first = lines[0].split("\t").map((cell) => cell.trim().toLowerCase());
