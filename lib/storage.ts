@@ -61,6 +61,8 @@ export function parseTsv(text: string): ImportRow[] {
   if (jsonStart >= 0 && jsonEnd > jsonStart) {
     return parseJsonRows(cleaned.slice(jsonStart, jsonEnd + 1));
   }
+  const recoveredJson = parseLooseJsonRows(cleaned);
+  if (recoveredJson.length) return recoveredJson;
   const lines = cleaned.split(/\r?\n/).filter((line) => line.trim());
   if (!lines.length) return [];
   const first = lines[0].split("\t").map((cell) => cell.trim().toLowerCase());
@@ -83,6 +85,8 @@ function parseJsonRows(text: string): ImportRow[] {
   try {
     values = JSON.parse(text);
   } catch {
+    const recovered = parseLooseJsonRows(text);
+    if (recovered.length) return recovered;
     return [{ word: "", meaning: "", example: "", translation: "", source: "", line: 1, error: "JSON 格式无法识别" }];
   }
   if (!Array.isArray(values)) {
@@ -99,6 +103,28 @@ function parseJsonRows(text: string): ImportRow[] {
     else if (!/^[A-Za-z][A-Za-z '-]*$/.test(row.word)) row.error = "单词格式异常";
     return row;
   });
+}
+
+function parseLooseJsonRows(text: string): ImportRow[] {
+  const rows: ImportRow[] = [];
+  const objectPattern = /\{\s*"word"\s*:\s*"([\s\S]*?)"\s*,\s*"meaning"\s*:\s*"([\s\S]*?)"\s*,\s*"example"\s*:\s*"([\s\S]*?)"\s*,\s*"translation"\s*:\s*"([\s\S]*?)"\s*,\s*"source"\s*:\s*"([\s\S]*?)"\s*\}/g;
+  const cleanValue = (value: string) => value
+    .replace(/\\"/g, '"')
+    .replace(/\\[nr]/g, " ")
+    .replace(/\\\\/g, "\\")
+    .trim()
+    .replace(/\s+/g, " ");
+  for (const match of text.matchAll(objectPattern)) {
+    const row: ImportRow = {
+      word: cleanValue(match[1]), meaning: cleanValue(match[2]),
+      example: cleanValue(match[3]), translation: cleanValue(match[4]),
+      source: cleanValue(match[5]), line: rows.length + 1,
+    };
+    if (!row.word || !row.meaning || !row.example || !row.translation || !row.source) row.error = "存在空字段";
+    else if (!/^[A-Za-z][A-Za-z '-]*$/.test(row.word)) row.error = "单词格式异常";
+    rows.push(row);
+  }
+  return rows;
 }
 
 export function mergeRows(data: AppData, rows: ImportRow[]): AppData {

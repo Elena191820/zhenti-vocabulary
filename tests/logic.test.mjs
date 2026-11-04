@@ -26,6 +26,14 @@ test("extracts JSON despite mobile clipboard labels and invisible characters", (
   assert.equal(rows[0].error, undefined);
 });
 
+test("recovers ordered records from near-JSON without array brackets", () => {
+  const rows = parseTsv('{"word":"tipflation","meaning":"小费通胀","example":"This is called tipflation.","translation":"这被称为"小费通胀"。","source":"2025 · Text 1"},{"word":"income","meaning":"收入","example":"Tips supplement income.","translation":"小费补充收入。","source":"2025 · Text 1"}');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].word, "tipflation");
+  assert.equal(rows[1].word, "income");
+  assert.equal(rows[0].error, undefined);
+});
+
 test("merges duplicate words without replacing progress", () => {
   const data = { version:2, globalPosition:88, words:[{ ...base, wordStreak:3 }] };
   const rows = parseTsv("word\tmeaning\texample\ttranslation\tsource\nshift\t变化\tA second shift followed.\t随后发生了第二次变化。\t2023 Text 2");
