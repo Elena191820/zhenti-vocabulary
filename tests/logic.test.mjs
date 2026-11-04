@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseTsv, mergeRows } from "../lib/storage.ts";
 import { REVIEW_INTERVALS, scheduleWord } from "../lib/scheduler.ts";
+import { ANALYTICS_EVENTS, trackEvent } from "../lib/analytics.ts";
 
 const base = { id:"w1", word:"shift", meaning:"转变", contexts:[], status:"learning", wordStreak:0, nextReviewPosition:0, fallbackDueAt:"2020-01-01T00:00:00.000Z", contextStreak:0, wordHistory:[], contextHistory:[], createdAt:"2020-01-01T00:00:00.000Z", updatedAt:"2020-01-01T00:00:00.000Z" };
 
@@ -50,4 +51,14 @@ test("uses configurable card intervals and resets streak on fuzzy", () => {
   const fuzzy = scheduleWord({ ...known, wordStreak:4 }, "fuzzy", 20, 0);
   assert.equal(fuzzy.wordStreak, 0);
   assert.equal(fuzzy.nextReviewPosition, 25);
+});
+
+test("analytics only sends allowlisted anonymous event names and fails safely", () => {
+  const received = [];
+  globalThis.window = { umami: { track: (event) => received.push(event) } };
+  for (const event of ANALYTICS_EVENTS) trackEvent(event);
+  assert.deepEqual(received, [...ANALYTICS_EVENTS]);
+  globalThis.window = { umami: { track: () => { throw new Error("analytics unavailable"); } } };
+  assert.doesNotThrow(() => trackEvent("word_mode_click"));
+  delete globalThis.window;
 });

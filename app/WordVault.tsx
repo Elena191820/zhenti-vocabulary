@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { trackEvent } from "../lib/analytics";
 import { isDue, scheduleWord } from "../lib/scheduler";
 import { loadData, mergeRows, normalizeBackup, parseTsv, saveData } from "../lib/storage";
 import type { AppData, Context, ImportRow, Rating, WordEntry } from "../lib/types";
@@ -89,10 +90,10 @@ function Home({ stats, onPage }: { stats: { total: number; due: number; mastered
       <article><span className="stat-icon mint">◇</span><div><small>总词汇量</small><strong>{stats.total}</strong></div><em>{stats.mastered} 个已熟记</em></article>
     </section>
     <section className="mode-grid">
-      <button className="mode-card word-mode" onClick={() => onPage("word")}>
+      <button className="mode-card word-mode" onClick={() => { trackEvent("word_mode_click"); onPage("word"); }}>
         <span className="mode-label">WORD MODE</span><div className="mode-art">Aa</div><div><h2>单词模式</h2><p>单词 → 原句 → 释义，三步建立稳固记忆。</p><b>{stats.due ? `${stats.due} 个单词还需复习` : "开始学习新增单词"} <span>→</span></b></div>
       </button>
-      <button className="mode-card context-mode" onClick={() => onPage("context")}>
+      <button className="mode-card context-mode" onClick={() => { trackEvent("context_mode_click"); onPage("context"); }}>
         <span className="mode-label">CONTEXT MODE</span><div className="mode-art">“ ”</div><div><h2>语境模式</h2><p>在真题原句中填空，确认你能真正用语境唤起单词。</p><b>开始语境巩固 <span>→</span></b></div>
       </button>
     </section>
@@ -107,11 +108,23 @@ function StudyHeader({ title, subtitle, progress, onBack }: { title: string; sub
 function WordMode({ data, setData, onBack }: { data: AppData; setData: React.Dispatch<React.SetStateAction<AppData>>; onBack: () => void }) {
   const [stage, setStage] = useState(1);
   const [contextIndex, setContextIndex] = useState(0);
+  const sessionStarted = useRef(false);
+  const sessionCompleted = useRef(false);
   const due = data.words.filter((word) => isDue(word, data.globalPosition));
   const newWords = data.words.filter((word) => word.status === "new" && !due.includes(word));
   const candidates = due.length ? due : newWords;
   const word = candidates[0];
   const context = word?.contexts[contextIndex % Math.max(word.contexts.length, 1)];
+
+  useEffect(() => {
+    if (word && !sessionStarted.current) {
+      sessionStarted.current = true;
+      trackEvent("review_started");
+    } else if (!word && sessionStarted.current && !sessionCompleted.current) {
+      sessionCompleted.current = true;
+      trackEvent("review_completed");
+    }
+  }, [word]);
 
   function rate(rating: "fuzzy" | "known" | "mastered") {
     if (!word) return;
@@ -142,9 +155,21 @@ function ContextMode({ data, setData, onBack }: { data: AppData; setData: React.
   const [revealed, setRevealed] = useState(false);
   const [completed, setCompleted] = useState<string[]>([]);
   const [cursor, setCursor] = useState(() => Math.floor(Math.random() * Math.max(data.words.length, 1)));
+  const sessionStarted = useRef(false);
+  const sessionCompleted = useRef(false);
   const candidates = data.words.filter((word) => !completed.includes(word.id) && ((includeLearning && word.status === "learning") || (includeMastered && word.status === "mastered")) && word.contexts.length);
   const word = candidates[cursor % Math.max(candidates.length, 1)];
   const context = word?.contexts[0];
+
+  useEffect(() => {
+    if (word && !sessionStarted.current) {
+      sessionStarted.current = true;
+      trackEvent("review_started");
+    } else if (!word && sessionStarted.current && !sessionCompleted.current && (includeLearning || includeMastered)) {
+      sessionCompleted.current = true;
+      trackEvent("review_completed");
+    }
+  }, [word, includeLearning, includeMastered]);
 
   function rate(rating: Extract<Rating, "fuzzy" | "wrong" | "known">) {
     if (!word) return;
@@ -173,7 +198,7 @@ function ImportPage({ data, setData, notify }: { data: AppData; setData: React.D
   const valid = rows.filter((row) => !row.error);
   const duplicateWords = valid.filter((row, index) => valid.findIndex((item) => item.word.toLowerCase() === row.word.toLowerCase()) !== index).length;
   function preview() { setRows(parseTsv(text)); }
-  function commit() { setData((current) => mergeRows(current, valid)); notify(`已导入 ${valid.length} 条语境，原有进度已保留`); setText(""); setRows([]); }
+  function commit() { setData((current) => mergeRows(current, valid)); trackEvent("vocabulary_import_success"); notify(`已导入 ${valid.length} 条语境，原有进度已保留`); setText(""); setRows([]); }
   return <div className="page"><header className="page-header"><div><p className="eyebrow">批量导入</p><h1>把精读成果带进词库</h1><p>粘贴 TSV 文本。重复单词会合并语境，不会覆盖原有复习进度。</p></div></header>
     <section className="panel import-panel"><div className="panel-title"><div><h2>粘贴数据</h2><p>支持 TSV 或 JSON；手机从 ChatGPT 复制时推荐 JSON，换行消失也能识别。</p></div><button className="text-btn" onClick={() => setText(JSON_SAMPLE)}>填入 JSON 示例</button></div><textarea value={text} onChange={(event) => { setText(event.target.value); setRows([]); }} placeholder={JSON_SAMPLE} /><div className="import-actions"><span>{text ? "已有内容待检查" : "等待粘贴"}</span><button className="primary" disabled={!text.trim()} onClick={preview}>检查并预览</button></div></section>
     {rows.length > 0 && <section className="panel preview"><div className="panel-title"><div><h2>导入预览</h2><p><b>{valid.length}</b> 条可导入 · <b>{rows.length - valid.length}</b> 条有误 · <b>{duplicateWords}</b> 个重复单词将合并</p></div><button className="primary" disabled={!valid.length} onClick={commit}>确认导入</button></div><div className="table-wrap"><table><thead><tr><th>状态</th><th>单词 / 释义</th><th>真题原句</th><th>来源</th></tr></thead><tbody>{rows.map((row) => <tr key={row.line} className={row.error ? "row-error" : ""}><td><span className={row.error ? "pill error" : "pill ok"}>{row.error || "可导入"}</span></td><td><b>{row.word || "—"}</b><small>{row.meaning}</small></td><td>{row.example || "—"}</td><td>{row.source || "—"}</td></tr>)}</tbody></table></div></section>}
@@ -203,7 +228,7 @@ function DataPage({ data, setData, notify }: { data: AppData; setData: React.Dis
   const fileRef = useRef<HTMLInputElement>(null);
   function exportJson() { const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `真题词库备份-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(url); }
   async function restore(file?: File) { if (!file) return; try { const incoming = normalizeBackup(JSON.parse(await file.text())); if (!confirm(`恢复备份将使用文件中的 ${incoming.words.length} 个单词替换当前词库，继续吗？`)) return; setData(incoming); notify("备份恢复成功"); } catch (error) { alert(error instanceof Error ? error.message : "无法读取备份"); } if (fileRef.current) fileRef.current.value = ""; }
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">数据管理</p><h1>备份你的学习记录</h1><p>词库默认保存在当前浏览器。定期导出 JSON，可迁移到其他设备或避免误删。</p></div></header><div className="data-grid"><section className="panel data-card"><span>↓</span><h2>导出完整备份</h2><p>包含词汇、全部语境、两个模式的连续次数与练习历史。</p><button className="primary" onClick={exportJson}>导出 JSON</button></section><section className="panel data-card"><span>↑</span><h2>从备份恢复</h2><p>恢复前会先确认。请选择由本应用导出的 JSON 文件。</p><input ref={fileRef} type="file" accept="application/json,.json" onChange={(event) => restore(event.target.files?.[0])} /></section></div><section className="panel privacy"><b>本地保存说明</b><p>数据使用 IndexedDB 保存在此浏览器中，不会上传到服务器。清除浏览器站点数据可能导致丢失，请保留一份近期备份。</p></section></div>;
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">数据管理</p><h1>备份你的学习记录</h1><p>词库默认保存在当前浏览器。定期导出 JSON，可迁移到其他设备或避免误删。</p></div></header><div className="data-grid"><section className="panel data-card"><span>↓</span><h2>导出完整备份</h2><p>包含词汇、全部语境、两个模式的连续次数与练习历史。</p><button className="primary" onClick={exportJson}>导出 JSON</button></section><section className="panel data-card"><span>↑</span><h2>从备份恢复</h2><p>恢复前会先确认。请选择由本应用导出的 JSON 文件。</p><input ref={fileRef} type="file" accept="application/json,.json" onChange={(event) => restore(event.target.files?.[0])} /></section></div><section className="panel privacy"><b>本地保存与匿名统计说明</b><p>词库和学习记录使用 IndexedDB 保存在此浏览器中，不会上传到服务器。网站仅发送不含词库内容的匿名访问与功能事件。清除浏览器站点数据可能导致词库丢失，请保留一份近期备份。</p></section></div>;
 }
 
 function Empty({ title, text, action, onClick }: { title: string; text: string; action?: string; onClick?: () => void }) { return <div className="empty"><span>✦</span><h2>{title}</h2><p>{text}</p>{action && <button className="primary" onClick={onClick}>{action}</button>}</div>; }
